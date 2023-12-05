@@ -222,7 +222,29 @@ class DigitClassificationModel(object):
 
     def __init__(self) -> None:
         # Initialize your model parameters here
-        "*** TODO: COMPLETE HERE FOR QUESTION 3 ***"
+        self.batch_size = 25
+        self.dimLayer1 = 100
+        self.dimLayer2 = 100
+        self.learning_rate = -0.07
+
+        # Model architecture
+        # Hidden layer 1:
+        ### Weights
+        self.layer1Parameters = nn.Parameter(784, self.dimLayer1)
+        ### Bias
+        self.layer1Bias = nn.Parameter(1, self.dimLayer1)
+
+        # Hidden layer 2:
+        ### Weights
+        self.layer2Parameters = nn.Parameter(self.dimLayer1, self.dimLayer2)
+        ### Bias
+        self.layer2Bias = nn.Parameter(1, self.dimLayer2)
+
+        # Output layer:
+        ### Weights
+        self.layer3Parameters = nn.Parameter(self.dimLayer2, 10)
+        ### Bias
+        self.layer3Bias = nn.Parameter(1, 10)
 
     def run(self, x: nn.Constant) -> nn.Node:
         """
@@ -238,7 +260,16 @@ class DigitClassificationModel(object):
             A node with shape (batch_size x 10) containing predicted scores
                 (also called logits)
         """
-        "*** TODO: COMPLETE HERE FOR QUESTION 3 ***"
+        # Hidden Layer 1
+        a1 = nn.ReLU(nn.AddBias(nn.Linear(x, self.layer1Parameters), self.layer1Bias))
+
+        # Hidden Layer 2
+        a2 = nn.ReLU(nn.AddBias(nn.Linear(a1, self.layer2Parameters), self.layer2Bias))
+
+        # Output Layer
+        y_pred = nn.AddBias(nn.Linear(a2, self.layer3Parameters), self.layer3Bias)
+
+        return y_pred
 
     def get_loss(self, x: nn.Constant, y: nn.Constant) -> nn.Node:
         """
@@ -253,10 +284,45 @@ class DigitClassificationModel(object):
             y: a node with shape (batch_size x 10)
         Returns: a loss node
         """
-        "*** TODO: COMPLETE HERE FOR QUESTION 3 ***"
+        y_pred = self.run(x)
+        loss = nn.SoftmaxLoss(y_pred, y)
+        return loss
 
     def train(self, dataset: DigitClassificationDataset) -> None:
         """
         Trains the model.
         """
-        "*** TODO: COMPLETE HERE FOR QUESTION 3 ***"
+        DEBUG = True
+        done = False
+        e = 0
+        while not done:
+            for x, y in dataset.iterate_once(self.batch_size):
+                # Forward pass
+                loss = self.get_loss(x, y)
+
+                # Gradient computation
+                grad_w1, grad_b1, grad_w2, grad_b2, grad_w3, grad_b3 = nn.gradients(
+                    loss,
+                    [
+                        self.layer1Parameters,
+                        self.layer1Bias,
+                        self.layer2Parameters,
+                        self.layer2Bias,
+                        self.layer3Parameters,
+                        self.layer3Bias,
+                    ],
+                )
+
+                # Parameters update
+                self.layer1Parameters.update(grad_w1, self.learning_rate)
+                self.layer1Bias.update(grad_b1, self.learning_rate)
+                self.layer2Parameters.update(grad_w2, self.learning_rate)
+                self.layer2Bias.update(grad_b2, self.learning_rate)
+                self.layer3Parameters.update(grad_w3, self.learning_rate)
+                self.layer3Bias.update(grad_b3, self.learning_rate)
+
+            accuracy = dataset.get_validation_accuracy()
+            done = accuracy > 0.972
+            e += 1
+            if DEBUG:
+                print("Episode {} ended, accuracy is {}".format(e, accuracy))
