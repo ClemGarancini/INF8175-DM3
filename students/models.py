@@ -1,6 +1,7 @@
 import nn
 import numpy as np
 from backend import PerceptronDataset, RegressionDataset, DigitClassificationDataset
+import matplotlib.pyplot as plt
 
 
 class PerceptronModel(object):
@@ -93,9 +94,9 @@ class RegressionModel(object):
 
     def __init__(self) -> None:
         # Initialize your model parameters here
-        self.batch_size = 10
-        self.nbParametersLayer1 = 10
-        self.learning_rate = 0.1
+        self.batch_size = 25
+        self.nbParametersLayer1 = 100
+        self.learning_rate = -0.07
 
         # Model architecture
         # Hidden layer:
@@ -137,8 +138,15 @@ class RegressionModel(object):
                 to be used for training
         Returns: a loss node
         """
-        loss = nn.SquareLoss(x, y)
+        y_pred = self.run(x)
+        loss = nn.SquareLoss(y, y_pred)
         return loss
+
+    def customLoss(self, x: nn.Constant, y: nn.Constant) -> float:
+        l = 0
+        for i in range(len(x.data)):
+            l += 0.5 * (x.data[i][0] - y.data[i][0]) ** 2
+        return l / len(x.data)
 
     def train(self, dataset: RegressionDataset) -> None:
         """
@@ -146,10 +154,10 @@ class RegressionModel(object):
         """
         DEBUG = True
         done = False
+        e = 0
         while not done:
             for x, y in dataset.iterate_once(self.batch_size):
-                y_pred = self.run(x)
-                loss = self.get_loss(y, y_pred)
+                loss = self.get_loss(x, y)
                 grad_w1, grad_b1, grad_w2, grad_b2 = nn.gradients(
                     loss,
                     [
@@ -164,11 +172,37 @@ class RegressionModel(object):
                 self.layer2Parameters.update(grad_w2, self.learning_rate)
                 self.layer2Bias.update(grad_b2, self.learning_rate)
 
-            y_pred = self.run(dataset.x)
-            loss = self.get_loss(dataset.y, y_pred)
-            done = loss < 0.2
+            # print(self.customLoss(nn.Constant(dataset.y), y_pred))
+            # print(nn.Constant(dataset.y), y_pred)
+            # print("loss")
+            loss = self.get_loss(nn.Constant(dataset.x), nn.Constant(dataset.y))
+            done = loss.data.item() < 0.02
+            e += 1
             if DEBUG:
-                print("Episode Ended, loss is {}".format(loss))
+                print("Episode {} ended, loss is {}".format(e, loss.data.item()))
+                # wTest = nn.Parameter(1, 1)
+                # xTest = nn.Constant(np.array([[1]], dtype=np.float32))
+                # yPredTest = nn.Linear(xTest, wTest)
+                # yTest = nn.Constant(np.array([[4]], dtype=np.float32))
+                # print("###########################")
+                # print("y: ", yTest.data.item(), "\nyPred: ", yPredTest.data.item())
+
+                # lossTest = nn.SquareLoss(yPredTest, yTest)
+                # print("loss: ", lossTest.data.item())
+
+                # print("parameters where: ", wTest.data)
+                # [grad] = nn.gradients(lossTest, [wTest])
+                # print("grad is: ", grad.data)
+                # wTest.update(grad, 1)
+                # print("parameters are: ", wTest.data)
+                # plt.figure()
+                # plt.plot(dataset.x, y_pred.data)
+                # plt.show()
+        print(
+            "Training has ended after {} episodes, final loss is {}".format(
+                e, loss.data.item()
+            )
+        )
 
 
 class DigitClassificationModel(object):
