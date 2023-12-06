@@ -1,7 +1,5 @@
 import nn
-import numpy as np
 from backend import PerceptronDataset, RegressionDataset, DigitClassificationDataset
-import matplotlib.pyplot as plt
 
 
 class PerceptronModel(object):
@@ -30,11 +28,8 @@ class PerceptronModel(object):
             x: a node with shape (1 x dimensions)
         Returns: a node containing a single number (the score)
         """
-        # Compute the dot product
-        x_dot_w = nn.DotProduct(x, self.w)
-        # Create the Node
-        y = nn.Constant(x_dot_w.data)
-        return y
+        "*** TODO: COMPLETE HERE FOR QUESTION 1 ***"
+        return nn.DotProduct(x,self.w)
 
     def get_prediction(self, x: nn.Constant) -> int:
         """
@@ -42,48 +37,30 @@ class PerceptronModel(object):
 
         Returns: 1 or -1
         """
-        # Compute dot product
-        dot_product = self.run(x)
-        # Convert to scalar
-        dot_product_scalar = nn.as_scalar(dot_product)
-        # Create y Node
-        if dot_product_scalar == 0:
-            y = nn.Constant(np.array(1.0))
+        "*** TODO: COMPLETE HERE FOR QUESTION 1 ***"
+        y = nn.as_scalar(self.run(x))
+        if y >= 0:
+            prediction = 1
         else:
-            y = nn.Constant(np.array(np.sign(dot_product_scalar)))
-        return nn.as_scalar(y)
+            prediction = -1
+        return prediction
+        
 
     def train(self, dataset: PerceptronDataset) -> None:
         """
         Train the perceptron until convergence.
         """
-        DEBUG = False
-        badClassification = True
-        while badClassification:
-            badClassification = False
-            precision = 0
-            for x, y in dataset.iterate_once(1):
-                y_pred = self.get_prediction(x)
-                if DEBUG:
-                    print(
-                        "x is {}, y is {}, y_pred is {}".format(
-                            x, nn.as_scalar(y), y_pred
-                        )
-                    )
-                badClassification = badClassification or (y_pred != nn.as_scalar(y))
-                if y_pred != nn.as_scalar(y):
-                    self.w.update(x, nn.as_scalar(y))
-                    precision += 1
-            if DEBUG:
-                print(badClassification)
-                print(
-                    "An episode has ended, the precision is: {}%".format(
-                        100 * (dataset.x.shape[0] - precision) / dataset.x.shape[0]
-                    )
-                )
-
-        return None
-
+        "*** TODO: COMPLETE HERE FOR QUESTION 1 ***"
+        batch_size = 1
+        all_correctly_classified = False
+        while not all_correctly_classified:
+            all_correctly_classified = True
+            for x,y in dataset.iterate_once(batch_size):
+                target = nn.as_scalar(y)
+                prediction = self.get_prediction(x)
+                if target != prediction:
+                    all_correctly_classified = False
+                    self.w.update(x,target)
 
 class RegressionModel(object):
     """
@@ -94,22 +71,11 @@ class RegressionModel(object):
 
     def __init__(self) -> None:
         # Initialize your model parameters here
-        self.batch_size = 25
-        self.nbParametersLayer1 = 100
-        self.learning_rate = -0.07
-
-        # Model architecture
-        # Hidden layer:
-        ### Weights
-        self.layer1Parameters = nn.Parameter(1, self.nbParametersLayer1)
-        ### Bias
-        self.layer1Bias = nn.Parameter(1, self.nbParametersLayer1)
-
-        # Output layer:
-        ### Weights
-        self.layer2Parameters = nn.Parameter(self.nbParametersLayer1, 1)
-        ### Bias
-        self.layer2Bias = nn.Parameter(1, 1)
+        "*** TODO: COMPLETE HERE FOR QUESTION 2 ***"
+        self.w = [nn.Parameter(1,20),nn.Parameter(20,5),nn.Parameter(5,1)]
+        self.b = [nn.Parameter(1,20),nn.Parameter(1,5),nn.Parameter(1,1)]
+        self.nb_couche_ffd = len(self.w)
+        self.model = [nn.Linear, nn.AddBias,nn.ReLU,nn.Linear,nn.AddBias,nn.ReLU,nn.Linear,nn.AddBias]
 
     def run(self, x: nn.Constant) -> nn.Node:
         """
@@ -120,13 +86,17 @@ class RegressionModel(object):
         Returns:
             A node with shape (batch_size x 1) containing predicted y-values
         """
-        # Forward Pass of the 1st hidden layer
-        a = nn.ReLU(nn.AddBias(nn.Linear(x, self.layer1Parameters), self.layer1Bias))
-
-        # Forward Pass of the output layer
-        y_pred = nn.AddBias(nn.Linear(a, self.layer2Parameters), self.layer2Bias)
-
-        return y_pred
+        "*** TODO: COMPLETE HERE FOR QUESTION 2 ***"
+        nb_ffd = 0
+        for layer in self.model:
+            if layer == nn.Linear:
+                x = layer(x, self.w[nb_ffd])
+            if layer == nn.AddBias:
+                x = layer(x, self.b[nb_ffd])
+                nb_ffd +=1
+            if layer == nn.ReLU:
+                x = layer(x)
+        return(x)
 
     def get_loss(self, x: nn.Constant, y: nn.Constant) -> nn.Node:
         """
@@ -138,71 +108,41 @@ class RegressionModel(object):
                 to be used for training
         Returns: a loss node
         """
-        y_pred = self.run(x)
-        loss = nn.SquareLoss(y, y_pred)
+        "*** TODO: COMPLETE HERE FOR QUESTION 2 ***"
+        predicted_y = self.run(x)
+        loss = nn. SquareLoss(predicted_y , y)
         return loss
-
-    def customLoss(self, x: nn.Constant, y: nn.Constant) -> float:
-        l = 0
-        for i in range(len(x.data)):
-            l += 0.5 * (x.data[i][0] - y.data[i][0]) ** 2
-        return l / len(x.data)
 
     def train(self, dataset: RegressionDataset) -> None:
         """
         Trains the model.
         """
-        DEBUG = True
-        done = False
-        e = 0
-        while not done:
-            for x, y in dataset.iterate_once(self.batch_size):
-                loss = self.get_loss(x, y)
-                grad_w1, grad_b1, grad_w2, grad_b2 = nn.gradients(
-                    loss,
-                    [
-                        self.layer1Parameters,
-                        self.layer1Bias,
-                        self.layer2Parameters,
-                        self.layer2Bias,
-                    ],
-                )
-                self.layer1Parameters.update(grad_w1, self.learning_rate)
-                self.layer1Bias.update(grad_b1, self.learning_rate)
-                self.layer2Parameters.update(grad_w2, self.learning_rate)
-                self.layer2Bias.update(grad_b2, self.learning_rate)
+        "*** TODO: COMPLETE HERE FOR QUESTION 2 ***"
+        batch_size = 64
+        step_size = -0.01
+        size_dataset = dataset.x.shape[0]
+        while size_dataset % batch_size !=0:
+            batch_size = int(batch_size/2)
+        loss = 1
+        while loss > 0.02:
+            for x,y in dataset.iterate_once(batch_size):
+                step_loss = self.get_loss(x,y)
+                nb_ffd = self.nb_couche_ffd
 
-            # print(self.customLoss(nn.Constant(dataset.y), y_pred))
-            # print(nn.Constant(dataset.y), y_pred)
-            # print("loss")
-            loss = self.get_loss(nn.Constant(dataset.x), nn.Constant(dataset.y))
-            done = loss.data.item() < 0.02
-            e += 1
-            if DEBUG:
-                print("Episode {} ended, loss is {}".format(e, loss.data.item()))
-                # wTest = nn.Parameter(1, 1)
-                # xTest = nn.Constant(np.array([[1]], dtype=np.float32))
-                # yPredTest = nn.Linear(xTest, wTest)
-                # yTest = nn.Constant(np.array([[4]], dtype=np.float32))
-                # print("###########################")
-                # print("y: ", yTest.data.item(), "\nyPred: ", yPredTest.data.item())
+                # Liste contenant tous les paramètres
+                parameters = self.w + self.b
 
-                # lossTest = nn.SquareLoss(yPredTest, yTest)
-                # print("loss: ", lossTest.data.item())
+                # Calcul des gradients
+                grads = nn.gradients(step_loss, parameters)
 
-                # print("parameters where: ", wTest.data)
-                # [grad] = nn.gradients(lossTest, [wTest])
-                # print("grad is: ", grad.data)
-                # wTest.update(grad, 1)
-                # print("parameters are: ", wTest.data)
-                # plt.figure()
-                # plt.plot(dataset.x, y_pred.data)
-                # plt.show()
-        print(
-            "Training has ended after {} episodes, final loss is {}".format(
-                e, loss.data.item()
-            )
-        )
+                # Mise à jour des paramètres
+                for i in range(nb_ffd):
+                    self.w[i].update(grads[i], step_size)
+                    self.b[i].update(grads[nb_ffd+i], step_size)
+            for x,y in dataset.iterate_once(size_dataset):
+                loss = nn.as_scalar(self.get_loss(x,y))
+        
+
 
 
 class DigitClassificationModel(object):
@@ -222,29 +162,11 @@ class DigitClassificationModel(object):
 
     def __init__(self) -> None:
         # Initialize your model parameters here
-        self.batch_size = 25
-        self.dimLayer1 = 100
-        self.dimLayer2 = 100
-        self.learning_rate = -0.07
-
-        # Model architecture
-        # Hidden layer 1:
-        ### Weights
-        self.layer1Parameters = nn.Parameter(784, self.dimLayer1)
-        ### Bias
-        self.layer1Bias = nn.Parameter(1, self.dimLayer1)
-
-        # Hidden layer 2:
-        ### Weights
-        self.layer2Parameters = nn.Parameter(self.dimLayer1, self.dimLayer2)
-        ### Bias
-        self.layer2Bias = nn.Parameter(1, self.dimLayer2)
-
-        # Output layer:
-        ### Weights
-        self.layer3Parameters = nn.Parameter(self.dimLayer2, 10)
-        ### Bias
-        self.layer3Bias = nn.Parameter(1, 10)
+        "*** TODO: COMPLETE HERE FOR QUESTION 3 ***"
+        self.w = [nn.Parameter(784,100),nn.Parameter(100,100),nn.Parameter(100,10)]
+        self.b = [nn.Parameter(1,100),nn.Parameter(1,100),nn.Parameter(1,10)]
+        self.nb_couche_ffd = len(self.w)
+        self.model = [nn.Linear, nn.AddBias,nn.ReLU,nn.Linear,nn.AddBias,nn.ReLU,nn.Linear,nn.AddBias]
 
     def run(self, x: nn.Constant) -> nn.Node:
         """
@@ -260,16 +182,17 @@ class DigitClassificationModel(object):
             A node with shape (batch_size x 10) containing predicted scores
                 (also called logits)
         """
-        # Hidden Layer 1
-        a1 = nn.ReLU(nn.AddBias(nn.Linear(x, self.layer1Parameters), self.layer1Bias))
-
-        # Hidden Layer 2
-        a2 = nn.ReLU(nn.AddBias(nn.Linear(a1, self.layer2Parameters), self.layer2Bias))
-
-        # Output Layer
-        y_pred = nn.AddBias(nn.Linear(a2, self.layer3Parameters), self.layer3Bias)
-
-        return y_pred
+        "*** TODO: COMPLETE HERE FOR QUESTION 3 ***"
+        nb_ffd = 0
+        for layer in self.model:
+            if layer == nn.Linear:
+                x = layer(x, self.w[nb_ffd])
+            if layer == nn.AddBias:
+                x = layer(x, self.b[nb_ffd])
+                nb_ffd +=1
+            if layer == nn.ReLU:
+                x = layer(x)
+        return(x)
 
     def get_loss(self, x: nn.Constant, y: nn.Constant) -> nn.Node:
         """
@@ -284,45 +207,35 @@ class DigitClassificationModel(object):
             y: a node with shape (batch_size x 10)
         Returns: a loss node
         """
+        "*** TODO: COMPLETE HERE FOR QUESTION 3 ***"
         y_pred = self.run(x)
-        loss = nn.SoftmaxLoss(y_pred, y)
+        loss = nn.SoftmaxLoss(y_pred,y)
         return loss
 
     def train(self, dataset: DigitClassificationDataset) -> None:
         """
         Trains the model.
         """
-        DEBUG = True
-        done = False
-        e = 0
-        while not done:
-            for x, y in dataset.iterate_once(self.batch_size):
-                # Forward pass
-                loss = self.get_loss(x, y)
+        "*** TODO: COMPLETE HERE FOR QUESTION 3 ***"
+        batch_size = 25
+        step_size = -0.07
+        size_dataset = dataset.x.shape[0]
+        while size_dataset % batch_size !=0:
+            batch_size = int(batch_size/2)
+        val_accuracy = 0
+        while val_accuracy < 0.97:
+            for x,y in dataset.iterate_once(batch_size):
+                step_loss = self.get_loss(x,y)
+                nb_ffd = self.nb_couche_ffd
 
-                # Gradient computation
-                grad_w1, grad_b1, grad_w2, grad_b2, grad_w3, grad_b3 = nn.gradients(
-                    loss,
-                    [
-                        self.layer1Parameters,
-                        self.layer1Bias,
-                        self.layer2Parameters,
-                        self.layer2Bias,
-                        self.layer3Parameters,
-                        self.layer3Bias,
-                    ],
-                )
+                # Liste contenant tous les paramètres
+                parameters = self.w + self.b
 
-                # Parameters update
-                self.layer1Parameters.update(grad_w1, self.learning_rate)
-                self.layer1Bias.update(grad_b1, self.learning_rate)
-                self.layer2Parameters.update(grad_w2, self.learning_rate)
-                self.layer2Bias.update(grad_b2, self.learning_rate)
-                self.layer3Parameters.update(grad_w3, self.learning_rate)
-                self.layer3Bias.update(grad_b3, self.learning_rate)
+                # Calcul des gradients
+                grads = nn.gradients(step_loss, parameters)
 
-            accuracy = dataset.get_validation_accuracy()
-            done = accuracy > 0.972
-            e += 1
-            if DEBUG:
-                print("Episode {} ended, accuracy is {}".format(e, accuracy))
+                # Mise à jour des paramètres
+                for i in range(nb_ffd):
+                    self.w[i].update(grads[i], step_size)
+                    self.b[i].update(grads[nb_ffd+i], step_size)
+            val_accuracy = dataset.get_validation_accuracy()
